@@ -9,6 +9,14 @@ GitHub composite action：給一個關鍵字，先用自架的 [SearXNG](https:/
 ### 跨 repo 引用
 
 ```yaml
+on:
+  workflow_dispatch:
+    inputs:
+      keyword:
+        description: "要搜尋的關鍵字"
+        required: true
+        type: string
+
 jobs:
   search-and-scrape:
     runs-on: ubuntu-latest
@@ -19,7 +27,7 @@ jobs:
         id: search
         uses: ti777777/search-and-scrape-action@main
         with:
-          keyword: "你的關鍵字"
+          keyword: ${{ inputs.keyword }}
           result-count: 3
 
       - name: 用結果
