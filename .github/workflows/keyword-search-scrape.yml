@@ -15,12 +15,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 其他 workflow 只要有這個 repo 的內容（同 repo 用相對路徑；
-      # 跨 repo 用 `uses: <org>/<repo>/.github/actions/keyword-search-scrape@<ref>`），
-      # 就可以直接用這一個 step 取得搜尋+擷取結果。
+      # 同 repo 用相對路徑 `./`；跨 repo 用 `uses: ti777777/search-and-scrape-action@main`
+      # （action.yml 放在 repo 根目錄，所以不用寫 .github/actions/... 那串路徑）。
       - name: Search & scrape top 3 results
         id: search
-        uses: ./.github/actions/keyword-search-scrape
+        uses: ./
         with:
           keyword: ${{ inputs.keyword }}
           result-count: 3
