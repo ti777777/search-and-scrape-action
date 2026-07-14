@@ -1,0 +1,94 @@
+name: "Keyword Search & Scrape (SearXNG + Playwright)"
+description: >
+  Search a keyword via a self-hosted, ephemeral SearXNG instance, then use a
+  headless browser (Playwright) to scrape the top N result pages. Full text
+  content is written under $GITHUB_WORKSPACE/<results-dir>/, and a compact
+  JSON summary (url/title/file path per result) is exposed as step outputs
+  for later steps to consume.
+
+inputs:
+  keyword:
+    description: "要搜尋的關鍵字"
+    required: true
+  result-count:
+    description: "要擷取的搜尋結果數量"
+    required: false
+    default: "3"
+  results-dir-name:
+    description: "輸出資料夾名稱（相對於 GITHUB_WORKSPACE）"
+    required: false
+    default: "search-results"
+  searxng-image:
+    description: "自架 SearXNG 使用的 docker image"
+    required: false
+    default: "searxng/searxng:latest"
+
+outputs:
+  results-dir:
+    description: "相對於 GITHUB_WORKSPACE 的輸出資料夾路徑"
+    value: ${{ steps.search.outputs.results_dir }}
+  results-json:
+    description: "JSON 陣列字串，每筆包含 rank/url/title/file/contentLength/error"
+    value: ${{ steps.search.outputs.results_json }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set unique SearXNG container name
+      shell: bash
+      run: echo "SEARXNG_CONTAINER=searxng-${{ github.run_id }}-$(date +%s%N)" >> "$GITHUB_ENV"
+
+    - name: Start SearXNG (self-hosted, ephemeral)
+      shell: bash
+      run: |
+        docker run -d \
+          --name "${SEARXNG_CONTAINER}" \
+          -p 8080:8080 \
+          -e "BASE_URL=http://localhost:8080/" \
+          -v "${{ github.action_path }}/searxng-settings.yml:/etc/searxng/settings.yml:ro" \
+          ${{ inputs.searxng-image }}
+
+    - name: Wait for SearXNG to be ready
+      shell: bash
+      run: |
+        for i in $(seq 1 30); do
+          if curl -sf "http://localhost:8080/search?q=healthcheck&format=json" > /dev/null; then
+            echo "SearXNG is ready"
+            exit 0
+          fi
+          echo "Waiting for SearXNG... ($i)"
+          sleep 2
+        done
+        echo "SearXNG did not become ready in time"
+        docker logs "${SEARXNG_CONTAINER}"
+        exit 1
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Install Playwright
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm install playwright@1
+
+    - name: Install Chromium for Playwright
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npx playwright install --with-deps chromium
+
+    - name: Search SearXNG & scrape top results
+      id: search
+      shell: bash
+      env:
+        KEYWORD: ${{ inputs.keyword }}
+        SEARXNG_URL: "http://localhost:8080"
+        RESULT_COUNT: ${{ inputs.result-count }}
+        RESULTS_DIR_NAME: ${{ inputs.results-dir-name }}
+      run: node "${{ github.action_path }}/search-and-scrape.js"
+
+    - name: Stop SearXNG
+      if: always()
+      shell: bash
+      run: docker rm -f "${SEARXNG_CONTAINER}" || true

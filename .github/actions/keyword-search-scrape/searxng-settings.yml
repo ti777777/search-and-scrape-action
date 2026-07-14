@@ -1,0 +1,18 @@
+use_default_settings: true
+
+general:
+  instance_name: "CI SearXNG (ephemeral)"
+
+server:
+  # Random-ish key just for this throwaway CI instance, not meant to be secret.
+  secret_key: "ci-only-not-for-production-b8f2b6a7"
+  limiter: false
+  image_proxy: false
+
+search:
+  formats:
+    - html
+    - json
+
+ui:
+  static_use_hash: true

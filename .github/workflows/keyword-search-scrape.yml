@@ -1,0 +1,42 @@
+name: Keyword Search & Scrape (example caller)
+
+on:
+  workflow_dispatch:
+    inputs:
+      keyword:
+        description: "要搜尋的關鍵字"
+        required: true
+        type: string
+
+jobs:
+  search-and-scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 其他 workflow 只要有這個 repo 的內容（同 repo 用相對路徑；
+      # 跨 repo 用 `uses: <org>/<repo>/.github/actions/keyword-search-scrape@<ref>`），
+      # 就可以直接用這一個 step 取得搜尋+擷取結果。
+      - name: Search & scrape top 3 results
+        id: search
+        uses: ./.github/actions/keyword-search-scrape
+        with:
+          keyword: ${{ inputs.keyword }}
+          result-count: 3
+
+      # --- 下一個 step 直接消費 action 的 output ---
+      - name: Use results in next step
+        run: |
+          echo "results-dir output: ${{ steps.search.outputs.results-dir }}"
+          echo "results-json output: ${{ steps.search.outputs.results-json }}"
+          echo "Files written to \$GITHUB_WORKSPACE:"
+          ls -la "${{ github.workspace }}/${{ steps.search.outputs.results-dir }}"
+          echo "--- summary.json ---"
+          cat "${{ github.workspace }}/${{ steps.search.outputs.results-dir }}/summary.json"
+
+      - name: Upload scraped content as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: search-results
+          path: search-results/
